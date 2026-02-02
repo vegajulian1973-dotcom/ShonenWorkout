@@ -7,7 +7,7 @@ import Donaciones from './donaciones'
 import Login from './login'
 import Perfil from './perfil'
 import CreaTuPlan from './creaTuPlan'
-import MiPlan from './MiPlan'
+import MiPlan from './miPlan'
 import './index.css'
 import AdminCharacters from './adminCharacters'
 const Placeholder = ({ title }) => {
