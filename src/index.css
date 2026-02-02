@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+/* Esto le dice a Tailwind dónde buscar tus colores personalizados */
+@theme {
+  --color-neon-green: #39FF14;
+  --color-neon-purple: #9D00FF;
+  --color-neon-blue: #00D4FF;
+  --color-neon-red: #FF003C;
+}
+
+body {
+  background-color: black;
+  margin: 0;
+  color: white;
+  font-family: sans-serif;
+}
