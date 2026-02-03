@@ -6,11 +6,6 @@ import {
 } from 'lucide-react';
 import { supabase } from "./supabaseClient";
 import { generarPlanIntegral } from "./geminiService";
-// IMPORTANTE: Instala esto con: npm install @stripe/stripe-js
-import { loadStripe } from '@stripe/stripe-js';
-
-// Inicializamos Stripe con tu llave pública de entorno
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
 const CreaTuPlan = () => {
   const [loading, setLoading] = useState(true);
@@ -90,21 +85,7 @@ const CreaTuPlan = () => {
     setForjando(true); 
     
     try {
-      // 1. PROCESO DE PAGO CON STRIPE
-      const response = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      
-      const { id: sessionId } = await response.json();
-      const stripe = await stripePromise;
-
-      // Redirigir a la pasarela de Stripe
-      const result = await stripe.redirectToCheckout({ sessionId });
-
-      if (result.error) throw new Error(result.error.message);
-
-      // 2. GENERACIÓN DEL PLAN (Prompt Reforzado)
+      // GENERACIÓN DEL PLAN DIRECTA (SIN STRIPE)
       const datosParaIA = {
         nombre: userProfile?.apodo || "Guerrero",
         objetivo: selectedChar?.objetivo || userProfile?.objetivo || "Aumento de fuerza",
@@ -115,9 +96,7 @@ const CreaTuPlan = () => {
           REGLAS CRÍTICAS DE SALIDA (SISTEMA DE RANGO S):
           1. ESTRUCTURA JSON: Devuelve un objeto con las llaves "nombre_plan", "frase_motivacional", "rutina" (objeto con días) y "dieta_semanal" (objeto con días).
           2. RUTINA OBLIGATORIA: Cada día (Lunes a Domingo) DEBE tener una cadena de texto con EXACTAMENTE 7 ejercicios numerados, separados por comas. 
-             Ejemplo: "01. Calentamiento (2x10), 02. Ejercicio (3x12), 03. Ejercicio (3x12), 04. Ejercicio (3x12), 05. Ejercicio (3x12), 06. Ejercicio (3x12), 07. Finisher (1xMax)".
           3. DIETA OBLIGATORIA: Cada día de "dieta_semanal" DEBE tener un menú diferente con Desayuno, Comida y Cena.
-          4. No resumas. No uses "Repetir lo del Lunes". Si no generas 7 ejercicios por día, el sistema fallará.
         `
       };
       
@@ -208,9 +187,9 @@ const CreaTuPlan = () => {
                       <p className="text-[8px] text-zinc-500 font-black uppercase tracking-widest">Identificación</p>
                       <p className="text-[10px] font-bold text-white uppercase truncate text-left">{session.user.email}</p>
                     </div>
-                    <div className="space-y-1">
-                      <Link to="/perfil" className="w-full text-left px-3 py-2 text-[9px] font-black uppercase italic hover:bg-neon-green hover:text-black rounded-xl flex items-center gap-3 transition-colors text-left"><Settings size={14} /> Ver Ficha Técnica</Link>
-                      <button onClick={handleLogout} className="w-full text-left px-3 py-2 text-[9px] font-black uppercase italic text-red-500 hover:bg-red-500 hover:text-white rounded-xl flex items-center gap-3 transition-colors text-left"><LogOut size={14} /> Cerrar Protocolo</button>
+                    <div className="space-y-1 text-left">
+                      <Link to="/perfil" className="w-full text-left px-3 py-2 text-[9px] font-black uppercase italic hover:bg-neon-green hover:text-black rounded-xl flex items-center gap-3 transition-colors"><Settings size={14} /> Perfil Técnico</Link>
+                      <button onClick={handleLogout} className="w-full text-left px-3 py-2 text-[9px] font-black uppercase italic text-red-500 hover:bg-red-500 hover:text-white rounded-xl flex items-center gap-3 transition-colors"><LogOut size={14} /> Cerrar Protocolo</button>
                     </div>
                   </div>
                 </div>
@@ -222,10 +201,10 @@ const CreaTuPlan = () => {
           </button>
         </div>
 
-        {/* MENÚ MÓVIL REFORMADO - FONDO TOTALMENTE NEGRO */}
+        {/* MENÚ MÓVIL SÓLIDO */}
         {isMenuOpen && (
           <div className="lg:hidden fixed inset-0 bg-black z-[150] flex flex-col h-screen w-screen overflow-y-auto pt-24 px-8 pb-10">
-            <div className="flex flex-col space-y-8">
+            <div className="flex flex-col space-y-8 bg-black">
               <Link onClick={() => setIsMenuOpen(false)} to="/sobre-nosotros" className="text-2xl font-black uppercase italic flex items-center gap-4 text-white">
                 <Info size={28} /> Sobre Nosotros
               </Link>
@@ -320,11 +299,6 @@ const CreaTuPlan = () => {
                   <div className="absolute inset-0 bg-neon-green/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </button>
               </div>
-
-              <div className="mt-12 p-4 border border-zinc-800 bg-zinc-950/50 rounded-xl inline-flex items-center gap-4">
-                <ShieldCheck className="text-neon-green" size={20} />
-                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Transacción Segura vía Stripe (Rango S Encryption)</span>
-              </div>
             </div>
           )}
         </div>
@@ -338,11 +312,11 @@ const CreaTuPlan = () => {
                 <div className="bg-neon-green p-1.5 rounded-md"><Dumbbell className="text-black" size={20} /></div>
                 <span className="text-xl font-black italic uppercase tracking-tighter text-white">SHONEN<span className="text-neon-green">WORKOUT</span></span>
               </div>
-              <p className="text-gray-500 text-[11px] leading-relaxed uppercase tracking-wider font-bold italic">Plataforma de código abierto dedicada al alto rendimiento físico.</p>
+              <p className="text-gray-500 text-[11px] leading-relaxed uppercase tracking-wider font-bold italic">Plataforma dedicada al alto rendimiento físico.</p>
             </div>
             <div>
               <h4 className="text-white font-bold text-xs uppercase mb-6 tracking-[0.2em] flex items-center gap-2"><Code2 size={16} className="text-neon-green" /> Infraestructura</h4>
-              <ul className="text-gray-500 text-[10px] space-y-3 font-bold uppercase tracking-widest italic"><li>React 18 (Vite.js)</li><li>Supabase (Auth & DB)</li><li>Tailwind CSS</li><li>PostgreSQL Architecture</li><li>Vercel Deployment</li></ul>
+              <ul className="text-gray-500 text-[10px] space-y-3 font-bold uppercase tracking-widest italic"><li>React 18</li><li>Supabase</li><li>Tailwind CSS</li><li>Hugging Face IA</li><li>Vercel Deployment</li></ul>
             </div>
             <div>
               <h4 className="text-white font-bold text-xs uppercase mb-6 tracking-[0.2em] flex items-center gap-2"><ShieldCheck size={16} className="text-red-500" /> Ética</h4>
@@ -354,7 +328,7 @@ const CreaTuPlan = () => {
               <p className="text-[10px] text-gray-500 font-bold uppercase mt-2">Guanajuato, México</p>
             </div>
           </div>
-          <div className="pt-8 border-t border-white/5 text-[10px] text-gray-800 font-black tracking-[3px] uppercase text-center">© 2026 SHONEN WORKOUT. CÓDIGO POR ESTUDIANTES DE TECNOLOGÍA.</div>
+          <div className="pt-8 border-t border-white/5 text-[10px] text-gray-800 font-black tracking-[3px] uppercase text-center">© 2026 SHONEN WORKOUT.</div>
         </div>
       </footer>
     </div>
