@@ -30,7 +30,6 @@ const Perfil = () => {
 
   const getProfile = useCallback(async (userSession) => {
     try {
-      // Obtener Perfil
       const { data, error } = await supabase
         .from('profiles') 
         .select('*')
@@ -39,7 +38,6 @@ const Perfil = () => {
 
       if (data) setUserData(data);
 
-      // Verificar si tiene plan para la navbar
       const { data: planData } = await supabase
         .from('planes_entrenamiento')
         .select('id')
@@ -141,6 +139,7 @@ const Perfil = () => {
             </span>
           </Link>
 
+          {/* DESKTOP NAV */}
           <div className="hidden lg:flex items-center gap-8 text-[10px] font-bold uppercase tracking-[0.2em]">
             <Link to="/sobre-nosotros" className="flex items-center gap-2 hover:text-neon-green transition-colors font-bold uppercase italic">
               <Info size={14} /> Sobre Nosotros
@@ -189,10 +188,55 @@ const Perfil = () => {
             )}
           </div>
 
-          <button className="lg:hidden text-neon-green" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+          <button className="lg:hidden text-neon-green z-[200]" onClick={() => setIsMenuOpen(!isMenuOpen)}>
             {isMenuOpen ? <X size={32} /> : <Menu size={32} />}
           </button>
         </div>
+
+        {/* --- NUEVO MENÚ MÓVIL (SÓLIDO Y FUNCIONAL) --- */}
+        {isMenuOpen && (
+          <div className="lg:hidden fixed inset-0 bg-black z-[150] flex flex-col h-screen w-screen overflow-y-auto pt-32 px-8 pb-10">
+            <div className="flex flex-col space-y-8 relative z-[160] bg-black">
+              <Link to="/sobre-nosotros" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 text-white font-black italic uppercase text-2xl tracking-tighter">
+                <Info className="text-neon-green" size={28} /> SOBRE NOSOTROS
+              </Link>
+              
+              {tienePlan ? (
+                <>
+                  <Link to="/mi-plan" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 text-white font-black italic uppercase text-2xl tracking-tighter">
+                    <Activity className="text-neon-green" size={28} /> MI PLAN
+                  </Link>
+                  <Link to="/planes" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 text-white font-black italic uppercase text-2xl tracking-tighter">
+                    <Zap className="text-neon-green" size={28} /> CAMBIAR PLAN
+                  </Link>
+                </>
+              ) : (
+                <Link to="/planes" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 text-neon-green font-black italic uppercase text-2xl tracking-tighter">
+                  <Zap size={28} /> CREA TU PLAN
+                </Link>
+              )}
+
+              <Link to="/donaciones" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 text-yellow-400 font-black italic uppercase text-2xl tracking-tighter">
+                <Coffee size={28} /> APOYAR PROYECTO
+              </Link>
+
+              <div className="h-px bg-white/10 my-4" />
+
+              {session && (
+                <div className="space-y-6">
+                  <div className="bg-zinc-900/50 p-6 rounded-2xl border border-neon-green/30">
+                    <p className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.2em] mb-2 text-left">Atleta Activo</p>
+                    <p className="text-lg font-black italic uppercase text-white text-left">{userData.apodo || 'GUERRERO_Z'}</p>
+                    <p className="text-[10px] text-zinc-600 truncate text-left mt-1">{session.user.email}</p>
+                  </div>
+                  <button onClick={handleLogout} className="flex items-center gap-4 text-red-500 font-black italic uppercase text-2xl tracking-tighter w-full text-left">
+                    <LogOut size={28} /> CERRAR PROTOCOLO
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* --- CONTENIDO PRINCIPAL --- */}
