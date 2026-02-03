@@ -91,7 +91,8 @@ const MiPlan = () => {
 
   return (
     <div className="min-h-screen bg-black text-white selection:bg-neon-green">
-      <nav className="fixed top-0 w-full border-b border-neon-green/20 bg-black/90 backdrop-blur-md z-[100]">
+      {/* NAVBAR */}
+      <nav className="fixed top-0 w-full border-b border-neon-green/20 bg-black/95 z-[100]">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3 group">
             <div className="bg-neon-green p-2 rounded-lg group-hover:shadow-[0_0_20px_#39FF14] transition-all">
@@ -99,6 +100,8 @@ const MiPlan = () => {
             </div>
             <span className="text-2xl font-black tracking-tighter italic uppercase">SHONEN<span className="text-neon-green">WORKOUT</span></span>
           </Link>
+
+          {/* MENÚ DESKTOP */}
           <div className="hidden lg:flex items-center gap-8 text-[10px] font-bold uppercase tracking-[0.2em]">
             <Link to="/sobre-nosotros" className="flex items-center gap-2 hover:text-neon-green transition-colors font-bold uppercase italic"><Info size={14} /> Sobre Nosotros</Link>
             <Link to="/mi-plan" className="flex items-center gap-2 text-white border-b border-neon-green pb-1 font-bold uppercase italic"><Activity size={14} className="text-neon-green" /> Mi Plan</Link>
@@ -126,10 +129,61 @@ const MiPlan = () => {
               </div>
             )}
           </div>
-          <button className="lg:hidden text-neon-green" onClick={() => setIsMenuOpen(!isMenuOpen)}>{isMenuOpen ? <X size={32} /> : <Menu size={32} />}</button>
+
+          {/* BOTÓN HAMBURGUESA MÓVIL */}
+          <button className="lg:hidden text-neon-green z-[200] p-2" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+            {isMenuOpen ? <X size={32} /> : <Menu size={32} />}
+          </button>
         </div>
+
+        {/* MENÚ MÓVIL REFORMADO - FONDO TOTALMENTE NEGRO */}
+        {isMenuOpen && (
+          <div className="lg:hidden fixed inset-0 bg-black z-[150] flex flex-col h-screen w-screen overflow-y-auto pt-24 px-8 pb-10 animate-in fade-in duration-300">
+            <div className="flex flex-col space-y-8">
+              <Link onClick={() => setIsMenuOpen(false)} to="/sobre-nosotros" className="text-2xl font-black uppercase italic flex items-center gap-4 text-white">
+                <Info size={28} /> Sobre Nosotros
+              </Link>
+              <Link onClick={() => setIsMenuOpen(false)} to="/mi-plan" className="text-2xl font-black uppercase italic flex items-center gap-4 text-neon-green">
+                <Activity size={28} /> Mi Plan
+              </Link>
+              <Link onClick={() => setIsMenuOpen(false)} to="/planes" className="text-2xl font-black uppercase italic flex items-center gap-4 text-white">
+                <Zap size={28} /> Cambiar Plan
+              </Link>
+              <Link onClick={() => setIsMenuOpen(false)} to="/donaciones" className="text-2xl font-black uppercase italic text-yellow-400 flex items-center gap-4">
+                <Coffee size={28} /> Apoyar Proyecto
+              </Link>
+              
+              <div className="pt-8 border-t border-white/10 space-y-6">
+                {session ? (
+                  <>
+                    <div className="flex items-center gap-4 bg-zinc-900 p-4 rounded-2xl border border-white/5">
+                      <div className="text-neon-green p-2 bg-white/5 rounded-full">{randomIcon}</div>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Atleta Activo</span>
+                        <span className="font-black italic uppercase text-lg text-white">{userProfile?.apodo || 'GUERRERO'}</span>
+                      </div>
+                    </div>
+                    <div className="grid gap-4">
+                      <Link onClick={() => setIsMenuOpen(false)} to="/perfil" className="flex items-center gap-4 text-lg font-black uppercase italic text-white/80">
+                        <Settings size={22} /> Perfil Técnico
+                      </Link>
+                      <button onClick={handleLogout} className="flex items-center gap-4 text-lg font-black uppercase italic text-red-500">
+                        <LogOut size={22} /> Cerrar Protocolo
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <Link onClick={() => setIsMenuOpen(false)} to="/login" className="flex items-center justify-center gap-4 border-2 border-neon-green text-neon-green p-5 rounded-2xl text-xl font-black uppercase italic">
+                    <User size={24} /> Acceso Guerrero
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </nav>
 
+      {/* CONTENIDO PRINCIPAL */}
       <main className="pt-32 pb-20 px-8">
         {!plan ? (
           <div className="min-h-[60vh] flex flex-col items-center justify-center text-center">
@@ -163,31 +217,27 @@ const MiPlan = () => {
                         </div>
                       </div>
                       <ul className="space-y-6">
-  {typeof ejercicios === 'string' ? (
-    ejercicios.split(',').map((ej, i) => {
-      const textoLimpio = ej.trim();
-      if (!textoLimpio) return null;
-
-      return (
-        <li key={i} className="flex items-start gap-6 group/item">
-          {/* El número de la misión (01, 02...) */}
-          <span className="text-neon-green font-black italic text-xl min-w-[30px] opacity-40 group-hover/item:opacity-100 transition-opacity">
-            {(i + 1).toString().padStart(2, '0')}
-          </span>
-          
-          <div className="w-full">
-            {/* El nombre del ejercicio y las series/reps */}
-            <p className="text-zinc-100 font-black uppercase italic text-lg tracking-tight border-b border-zinc-800 pb-3 group-hover/item:border-neon-green/50 transition-all">
-              {textoLimpio.replace(/^\d+\.\s*/, '')}
-            </p>
-          </div>
-        </li>
-      );
-    })
-  ) : (
-    <li className="text-zinc-500 italic uppercase">Esperando órdenes del Sistema...</li>
-  )}
-</ul>
+                        {typeof ejercicios === 'string' ? (
+                          ejercicios.split(',').map((ej, i) => {
+                            const textoLimpio = ej.trim();
+                            if (!textoLimpio) return null;
+                            return (
+                              <li key={i} className="flex items-start gap-6 group/item">
+                                <span className="text-neon-green font-black italic text-xl min-w-[30px] opacity-40 group-hover/item:opacity-100 transition-opacity">
+                                  {(i + 1).toString().padStart(2, '0')}
+                                </span>
+                                <div className="w-full">
+                                  <p className="text-zinc-100 font-black uppercase italic text-lg tracking-tight border-b border-zinc-800 pb-3 group-hover/item:border-neon-green/50 transition-all">
+                                    {textoLimpio.replace(/^\d+\.\s*/, '')}
+                                  </p>
+                                </div>
+                              </li>
+                            );
+                          })
+                        ) : (
+                          <li className="text-zinc-500 italic uppercase">Esperando órdenes del Sistema...</li>
+                        )}
+                      </ul>
                     </div>
                   ))}
                 </div>
@@ -215,6 +265,7 @@ const MiPlan = () => {
         )}
       </main>
 
+      {/* FOOTER */}
       <footer className="bg-black border-t border-neon-green/10 pt-20 pb-10">
         <div className="max-w-7xl mx-auto px-6 text-left">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">

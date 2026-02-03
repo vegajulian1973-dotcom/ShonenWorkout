@@ -66,7 +66,7 @@ const Donaciones = () => {
       desc: "Cubre el mantenimiento básico de la base de datos por un día.",
       icono: <Coffee className="text-yellow-400" size={32} />,
       color: "border-yellow-400/20",
-      link: "https://buy.stripe.com/test_14A9ATfAjaybeHW1FVdby01"
+      link: "https://buy.stripe.com/5kQ8wP1Gkdub0NGbbNf7i01"
     },
     {
       titulo: "Nodo Estudiante",
@@ -74,7 +74,7 @@ const Donaciones = () => {
       desc: "Apoya el despliegue de nuevos algoritmos de IA para rutinas.",
       icono: <Zap className="text-neon-blue" size={32} />,
       color: "border-neon-blue/20",
-      link: "https://buy.stripe.com/test_28EbJ10FpcGj6bq0BRdby02"
+      link: "https://buy.stripe.com/cNiaEXbgU9dVbsk2Fhf7i00"
     },
     {
       titulo: "Patrocinador Dojo",
@@ -82,15 +82,15 @@ const Donaciones = () => {
       desc: "Asegura la infraestructura del servidor por meses completos.",
       icono: <Heart className="text-neon-red" size={32} />,
       color: "border-neon-red/20",
-      link: "https://buy.stripe.com/test_00waEX87RfSvgQ498ndby00"
+      link: "https://buy.stripe.com/9B66oH84I0Hpaog0x9f7i02"
     }
   ];
 
   return (
     <div className="min-h-screen bg-black text-white selection:bg-neon-green">
       
-      {/* NAVBAR ACTUALIZADO */}
-      <nav className="fixed top-0 w-full border-b border-neon-green/20 bg-black/90 backdrop-blur-md z-[100]">
+      {/* NAVBAR */}
+      <nav className="fixed top-0 w-full border-b border-neon-green/20 bg-black/95 z-[100]">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3 group">
             <div className="bg-neon-green p-2 rounded-lg group-hover:shadow-[0_0_20px_#39FF14] transition-all">
@@ -152,10 +152,66 @@ const Donaciones = () => {
             )}
           </div>
 
-          <button className="lg:hidden text-neon-green" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+          <button className="lg:hidden text-neon-green z-[200] p-2" onClick={() => setIsMenuOpen(!isMenuOpen)}>
             {isMenuOpen ? <X size={32} /> : <Menu size={32} />}
           </button>
         </div>
+
+        {/* MENÚ MÓVIL - NEGRO SÓLIDO */}
+        {isMenuOpen && (
+          <div className="lg:hidden fixed inset-0 bg-black z-[150] flex flex-col h-screen w-screen overflow-y-auto pt-24 px-8 pb-10">
+            <div className="flex flex-col space-y-8">
+              <Link onClick={() => setIsMenuOpen(false)} to="/sobre-nosotros" className="text-2xl font-black uppercase italic flex items-center gap-4 text-white">
+                <Info size={28} /> Sobre Nosotros
+              </Link>
+              
+              {session && tienePlan ? (
+                <>
+                  <Link onClick={() => setIsMenuOpen(false)} to="/mi-plan" className="text-2xl font-black uppercase italic flex items-center gap-4 text-white">
+                    <Activity size={28} /> Mi Plan
+                  </Link>
+                  <Link onClick={() => setIsMenuOpen(false)} to="/planes" className="text-2xl font-black uppercase italic flex items-center gap-4 text-white">
+                    <Zap size={28} /> Cambiar Plan
+                  </Link>
+                </>
+              ) : (
+                <Link onClick={() => setIsMenuOpen(false)} to="/planes" className="text-2xl font-black uppercase italic flex items-center gap-4 text-white">
+                  <Zap size={28} /> Crea tu Plan
+                </Link>
+              )}
+
+              <Link onClick={() => setIsMenuOpen(false)} to="/donaciones" className="text-2xl font-black uppercase italic text-yellow-400 flex items-center gap-4">
+                <Coffee size={28} /> Apoyar Proyecto
+              </Link>
+              
+              <div className="pt-8 border-t border-white/10 space-y-6">
+                {session ? (
+                  <>
+                    <div className="flex items-center gap-4 bg-zinc-900 p-4 rounded-2xl border border-white/5">
+                      <div className="text-neon-green p-2 bg-white/5 rounded-full">{randomIcon}</div>
+                      <div className="flex flex-col text-left">
+                        <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Atleta Activo</span>
+                        <span className="font-black italic uppercase text-lg text-white">{userProfile?.apodo || 'GUERRERO'}</span>
+                      </div>
+                    </div>
+                    <div className="grid gap-4">
+                      <Link onClick={() => setIsMenuOpen(false)} to="/perfil" className="flex items-center gap-4 text-lg font-black uppercase italic text-white/80">
+                        <Settings size={22} /> Perfil Técnico
+                      </Link>
+                      <button onClick={handleLogout} className="flex items-center gap-4 text-lg font-black uppercase italic text-red-500">
+                        <LogOut size={22} /> Cerrar Protocolo
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <Link onClick={() => setIsMenuOpen(false)} to="/login" className="flex items-center justify-center gap-4 border-2 border-neon-green text-neon-green p-5 rounded-2xl text-xl font-black uppercase italic">
+                    <User size={24} /> Acceso Guerrero
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* CONTENIDO PRINCIPAL */}
@@ -229,7 +285,7 @@ const Donaciones = () => {
         </div>
       </main>
 
-      {/* FOOTER ACTUALIZADO */}
+      {/* FOOTER */}
       <footer className="bg-black border-t border-neon-green/10 pt-20 pb-10">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16 text-left">
