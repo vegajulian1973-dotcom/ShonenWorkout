@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Dumbbell, Info, Zap, User, Menu, X, Coffee, ShieldCheck,
   Target, Cpu, Code2, Award, ChevronLeft,
-  ChevronRight, AlertTriangle, CheckCircle2, LogOut, Settings, Activity, ChevronDown
+  ChevronRight, AlertTriangle, CheckCircle2, LogOut, Settings, Activity, ChevronDown,
+  Star // Añadida para los Valores
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from './supabaseClient';
@@ -17,6 +18,10 @@ function App() {
   const [userProfile, setUserProfile] = useState(null);
   const [tienePlan, setTienePlan] = useState(false);
   const [randomIcon, setRandomIcon] = useState(null);
+
+  // --- ESTADOS PARA MISIÓN, VISIÓN Y VALORES DINÁMICOS ---
+  const [configData, setConfigData] = useState([]);
+  const [configIndex, setConfigIndex] = useState(0);
 
   const slides = [
     {
@@ -66,7 +71,16 @@ function App() {
       }
     };
 
+    // CARGAR CONFIGURACIÓN INSTITUCIONAL
+    const cargarConfiguracion = async () => {
+      const { data, error } = await supabase
+        .from('configuracion_institucional')
+        .select('mision, vision, valores_clave');
+      if (data) setConfigData(data);
+    };
+
     cargarDatosUsuario();
+    cargarConfiguracion();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
@@ -76,12 +90,23 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Timer para el carrusel de imágenes
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev === slides.length - 1 ? 0 : prev + 1));
     }, 5000);
     return () => clearInterval(timer);
   }, [slides.length]);
+
+  // TIMER PARA EL CARRUSEL DE MISIÓN, VISIÓN Y VALORES (Cada 8 segundos)
+  useEffect(() => {
+    if (configData.length > 0) {
+      const timer = setInterval(() => {
+        setConfigIndex((prev) => (prev + 1) % configData.length);
+      }, 8000);
+      return () => clearInterval(timer);
+    }
+  }, [configData]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -185,14 +210,13 @@ function App() {
           </button>
         </div>
 
-        {/* MENÚ MÓVIL REFORMADO - FONDO TOTALMENTE NEGRO */}
+        {/* MENÚ MÓVIL */}
         {isMenuOpen && (
           <div className="lg:hidden fixed inset-0 bg-black z-[150] flex flex-col h-screen w-screen overflow-y-auto pt-24 px-8 pb-10 animate-in fade-in duration-300">
             <div className="flex flex-col space-y-8">
               <Link onClick={() => setIsMenuOpen(false)} to="/sobre-nosotros" className="text-2xl font-black uppercase italic flex items-center gap-4 text-white">
                 <Info size={28} /> Sobre Nosotros
               </Link>
-              
               {session && tienePlan ? (
                 <>
                   <Link onClick={() => setIsMenuOpen(false)} to="/mi-plan" className="text-2xl font-black uppercase italic flex items-center gap-4 text-white">
@@ -207,11 +231,9 @@ function App() {
                   <Zap size={28} /> Crea tu Plan
                 </Link>
               )}
-              
               <Link onClick={() => setIsMenuOpen(false)} to="/donaciones" className="text-2xl font-black uppercase italic text-yellow-400 flex items-center gap-4">
                 <Coffee size={28} /> Apoyar Proyecto
               </Link>
-              
               <div className="pt-8 border-t border-white/10 space-y-6">
                 {session ? (
                   <>
@@ -264,7 +286,7 @@ function App() {
           </p>
         </div>
 
-        {/* CARRUSEL */}
+        {/* CARRUSEL DE IMÁGENES */}
         <div className="relative h-[300px] md:h-[500px] w-full overflow-hidden rounded-3xl border border-white/10 group">
           {slides.map((slide, index) => (
             <div key={index} className={`absolute inset-0 transition-opacity duration-1000 ${index === currentSlide ? "opacity-100" : "opacity-0"}`}>
@@ -280,20 +302,39 @@ function App() {
           <button onClick={nextSlide} className="absolute right-4 top-1/2 -translate-y-1/2 z-30 p-2 bg-black/50 rounded-full border border-white/10 hover:border-neon-green text-white transition-all opacity-0 group-hover:opacity-100"><ChevronRight size={24} /></button>
         </div>
 
-        {/* MISIÓN Y VISIÓN */}
-        <div className="grid md:grid-cols-2 gap-12 pt-10">
-          <div className="group p-8 bg-white/5 rounded-3xl border border-white/10 hover:border-purple-500/50 transition-all text-left">
-            <h3 className="text-3xl font-black italic uppercase text-purple-500 flex items-center gap-3 mb-6"><Target size={30} /> Nuestra Misión</h3>
-            <p className="text-gray-400 leading-relaxed text-sm italic border-l-2 border-purple-500 pl-6">
-              Brindar una alternativa tecnológica de alta calidad para el acondicionamiento físico, democratizando el acceso a planes estructurados. Buscamos erradicar las barreras económicas que impiden a los jóvenes alcanzar su máximo potencial mediante el uso de arquitectura de software moderna y gratuita.
-            </p>
-          </div>
-          <div className="group p-8 bg-white/5 rounded-3xl border border-white/10 hover:border-blue-500/50 transition-all text-left">
-            <h3 className="text-3xl font-black italic uppercase text-blue-500 flex items-center gap-3 mb-6"><Cpu size={30} /> Nuestra Visión</h3>
-            <p className="text-gray-400 leading-relaxed text-sm italic border-l-2 border-blue-500 pl-6">
-              Convertirnos en la plataforma de referencia para la comunidad fitness hispanohablante, demostrando que el talento de los estudiantes de TSU puede generar soluciones de impacto social. Aspiramos a integrar tecnologías de análisis de datos para personalizar la evolución de cada "Guerrero" de forma precisa.
-            </p>
-          </div>
+        {/* --- SECCIÓN DINÁMICA: MISIÓN, VISIÓN Y VALORES (CARRUSEL) --- */}
+        <div className="grid md:grid-cols-3 gap-8 pt-10">
+          {configData.length > 0 ? (
+            <>
+              {/* MISIÓN */}
+              <div className="group p-8 bg-white/5 rounded-3xl border border-white/10 hover:border-purple-500/50 transition-all text-left animate-in fade-in duration-700" key={`mision-${configIndex}`}>
+                <h3 className="text-2xl font-black italic uppercase text-purple-500 flex items-center gap-3 mb-6"><Target size={24} /> Nuestra Misión</h3>
+                <p className="text-gray-400 leading-relaxed text-sm italic border-l-2 border-purple-500 pl-6">
+                  {configData[configIndex].mision}
+                </p>
+              </div>
+
+              {/* VISIÓN */}
+              <div className="group p-8 bg-white/5 rounded-3xl border border-white/10 hover:border-blue-500/50 transition-all text-left animate-in fade-in duration-700" key={`vision-${configIndex}`}>
+                <h3 className="text-2xl font-black italic uppercase text-blue-500 flex items-center gap-3 mb-6"><Cpu size={24} /> Nuestra Visión</h3>
+                <p className="text-gray-400 leading-relaxed text-sm italic border-l-2 border-blue-500 pl-6">
+                  {configData[configIndex].vision}
+                </p>
+              </div>
+
+              {/* VALORES (Creado nuevo como pediste) */}
+              <div className="group p-8 bg-white/5 rounded-3xl border border-white/10 hover:border-neon-green/50 transition-all text-left animate-in fade-in duration-700" key={`valores-${configIndex}`}>
+                <h3 className="text-2xl font-black italic uppercase text-neon-green flex items-center gap-3 mb-6"><Star size={24} /> Valores Clave</h3>
+                <p className="text-neon-green/80 font-black tracking-widest text-[10px] uppercase leading-loose border-l-2 border-neon-green pl-6">
+                  {configData[configIndex].valores_clave}
+                </p>
+              </div>
+            </>
+          ) : (
+            <div className="col-span-3 py-10 opacity-50 uppercase text-[10px] font-black tracking-[0.5em]">
+              Sincronizando Identidad Institucional...
+            </div>
+          )}
         </div>
       </section>
 
