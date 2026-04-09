@@ -1,23 +1,46 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
-import { 
-  Dumbbell, Utensils, Zap, Quote, Flame, 
-  Settings, LogOut, ChevronDown, Activity, User, Target, Code2, ShieldCheck, Coffee, Info, Menu, X 
+import {
+  Dumbbell, Utensils, Zap, Quote, Flame,
+  Settings, LogOut, ChevronDown, Activity, User, Target, Code2, ShieldCheck, Coffee, Info, Menu, X
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
+/**
+ * Componente MiPlan - Visualización del plan de entrenamiento creado
+ *
+ * Funcionalidad:
+ * - Obtiene el plan de entrenamiento guardado del usuario desde Supabase
+ * - Muestra rutina de ejercicios (Lunes a Domingo)
+ * - Muestra plan nutricional (Desayuno, Comida, Cena por día)
+ * - Ordena los días de la semana en secuencia correcta
+ * - Maneja la navegación si el usuario no tiene plan creado
+ */
 const MiPlan = () => {
-  const [datosDb, setDatosDb] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [userProfile, setUserProfile] = useState(null);
-  const [session, setSession] = useState(null);
-  const [randomIcon, setRandomIcon] = useState(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  // ===== ESTADOS DE DATOS =====
+  const [datosDb, setDatosDb] = useState(null); // Plan completo obtenido de la BD
+  const [userProfile, setUserProfile] = useState(null); // Perfil del usuario
+  const [session, setSession] = useState(null); // Sesión de autenticación
+
+  // ===== ESTADOS DE UI =====
+  const [loading, setLoading] = useState(true); // Pantalla de carga
+  const [randomIcon, setRandomIcon] = useState(null); // Icono aleatorio navbar
+  const [isMenuOpen, setIsMenuOpen] = useState(false); // Menú móvil
+
   const navigate = useNavigate();
 
+  // Array en orden correcto de días para ordenar la información en la pantalla
   const ordenDias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
+  /**
+   * useEffect Principal - Se ejecuta al montar el componente
+   * Funcionalidad:
+   * 1. Genera icono aleatorio para navbar
+   * 2. Obtiene todos los datos del usuario y su plan
+   * 3. Configura listener de cambios de autenticación
+   */
   useEffect(() => {
+    // Selecciona un icono al azar del array de iconos
     const icons = [
       <Activity key="icon-act" size={16} />,
       <Zap key="icon-zap" size={16} />,
@@ -25,17 +48,30 @@ const MiPlan = () => {
       <Target key="icon-trg" size={16} />
     ];
     setRandomIcon(icons[Math.floor(Math.random() * icons.length)]);
+
     obtenerDatosCompletos();
 
+    // Listener que se ejecuta cuando cambia el estado de autenticación
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
 
+    // Cleanup: desuscribe del listener al desmontar
     return () => subscription.unsubscribe();
   }, []);
 
+  /**
+   * Obtiene todos los datos necesarios para mostrar el plan
+   *
+   * Procesos:
+   * 1. Verifica si hay usuario autenticado
+   * 2. Obtiene perfil del usuario
+   * 3. Obtiene el plan de entrenamiento guardado
+   * 4. Maneja errores y finaliza carga
+   */
   const obtenerDatosCompletos = async () => {
     try {
+      // Obtiene el usuario autenticado actual
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         navigate('/login');
@@ -43,6 +79,7 @@ const MiPlan = () => {
       }
       setSession({ user });
 
+      // Obtiene el perfil completo del usuario
       const { data: profile } = await supabase
         .from('profiles')
         .select('*')
@@ -50,11 +87,12 @@ const MiPlan = () => {
         .single();
       setUserProfile(profile);
 
+      // Obtiene el plan de entrenamiento guardado (si existe)
       const { data: planData, error } = await supabase
         .from('planes_entrenamiento')
         .select('*')
         .eq('user_id', user.id)
-        .maybeSingle();
+        .maybeSingle(); // maybeSingle() retorna null si no existe
 
       if (!error && planData) {
         setDatosDb(planData);
@@ -62,15 +100,33 @@ const MiPlan = () => {
     } catch (error) {
       console.error("Error cargando datos:", error);
     } finally {
+      // Finaliza la pantalla de carga después de obtener datos
       setLoading(false);
     }
   };
 
+  /**
+   * Cierra la sesión del usuario y recarga la página
+   */
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.reload();
   };
 
+  /**
+   * Ordena un objeto por los días de la semana en orden correcto
+   *
+   * Parámetro:
+   * - objeto: Object con días como claves (ej: { Lunes: "...", Martes: "...", ... })
+   *
+   * Retorna:
+   * - Array de tuplas [día, contenido] ordenadas en orden de lunes a domingo
+   *
+   * Proceso:
+   * 1. Convierte objeto en array de pares [clave, valor]
+   * 2. Ordena según posición en el array 'ordenDias'
+   * 3. Retorna el array ordenado
+   */
   const ordenarPorDia = (objeto) => {
     if (!objeto) return [];
     return Object.entries(objeto).sort((a, b) => {

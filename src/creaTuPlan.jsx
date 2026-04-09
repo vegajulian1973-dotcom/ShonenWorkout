@@ -1,28 +1,51 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { 
-  Dumbbell, Info, Zap, User, Menu, X, Coffee, ShieldCheck, 
-  LogOut, Settings, Activity, Target, ChevronDown, Code2, Home, Building2 
+import {
+  Dumbbell, Info, Zap, User, Menu, X, Coffee, ShieldCheck,
+  LogOut, Settings, Activity, Target, ChevronDown, Code2, Home, Building2
 } from 'lucide-react';
 import { supabase } from "./supabaseClient";
 import { generarPlanIntegral } from "./geminiService";
 
+/**
+ * Componente CreaTuPlan - Gestiona la creación y cambio de planes de entrenamiento
+ *
+ * Funcionalidad principal:
+ * - Carga el perfil del usuario autenticado desde Supabase
+ * - Filtra personajes disponibles según el IMC actual del usuario
+ * - Implementa listener en tiempo real para actualizar datos si cambia el perfil
+ * - Genera un plan de entrenamiento personalizado usando IA (Hugging Face + Llama)
+ * - Guarda el plan generado en la base de datos
+ */
 const CreaTuPlan = () => {
-  const [loading, setLoading] = useState(true);
-  const [forjando, setForjando] = useState(false); 
-  const [characters, setCharacters] = useState([]);
-  const [userProfile, setUserProfile] = useState(null);
-  const [session, setSession] = useState(null);
-  const [randomIcon, setRandomIcon] = useState(null);
-  const [tienePlan, setTienePlan] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  
-  const [selectedChar, setSelectedChar] = useState(null);
-  const [step, setStep] = useState('list'); 
-  
+  // ===== ESTADOS DE CARGA Y UI =====
+  const [loading, setLoading] = useState(true); // Controla pantalla de sincronización
+  const [forjando, setForjando] = useState(false); // Indica cuando se está generando el plan
+  const [isMenuOpen, setIsMenuOpen] = useState(false); // Menú móvil
+  const [randomIcon, setRandomIcon] = useState(null); // Icono aleatorio para navbar
+
+  // ===== DATOS DEL USUARIO =====
+  const [userProfile, setUserProfile] = useState(null); // Perfil completo del usuario desde BD
+  const [session, setSession] = useState(null); // Sesión de autenticación Supabase
+  const [tienePlan, setTienePlan] = useState(false); // Indica si usuario ya tiene plan creado
+
+  // ===== DATOS DE PERSONAJES Y SELECCIÓN =====
+  const [characters, setCharacters] = useState([]); // Lista de personajes filtrados por IMC
+  const [selectedChar, setSelectedChar] = useState(null); // Personaje seleccionado actualmente
+  const [step, setStep] = useState('list'); // Control de flujo: 'list' = seleccionar personaje, otro = elegir ubicación
+
   const navigate = useNavigate();
 
+  /**
+   * useEffect Principal - Se ejecuta al montar el componente
+   * Funcionalidad:
+   * 1. Genera un icono aleatorio para el navbar
+   * 2. Carga datos del usuario autenticado
+   * 3. Filtra personajes según el IMC del usuario
+   * 4. Configura listener en tiempo real para cambios en el perfil
+   */
   useEffect(() => {
+    // Genera array de iconos y selecciona uno al azar para el navbar
     const icons = [
       <Activity key="icon-act" size={16} />,
       <Zap key="icon-zap" size={16} />,
@@ -31,15 +54,22 @@ const CreaTuPlan = () => {
     ];
     setRandomIcon(icons[Math.floor(Math.random() * icons.length)]);
 
+    /**
+     * Función asincrónica que carga todos los datos necesarios
+     * Obtiene: sesión, perfil usuario, planes existentes y personajes compatibles
+     */
     const cargarDatosUsuario = async () => {
+      // Verifica si hay sesión activa
       const { data: { session: currentSession } } = await supabase.auth.getSession();
       setSession(currentSession);
-      
+
+      // Si no hay sesión, redirige a login
       if (!currentSession) {
         navigate('/login');
         return;
       }
 
+      // Obtiene el perfil completo del usuario desde tabla 'profiles'
       const { data: profile } = await supabase
         .from('profiles')
         .select('*')
@@ -47,19 +77,27 @@ const CreaTuPlan = () => {
         .single();
       setUserProfile(profile);
 
+      // Verifica si el usuario ya tiene un plan de entrenamiento guardado
       const { data: planExistente } = await supabase
         .from('planes_entrenamiento')
         .select('id')
         .eq('user_id', currentSession.user.id)
         .maybeSingle();
-      
+
       if (planExistente) setTienePlan(true);
 
+      // Convierte IMC a número para comparación correcta (evita problemas de tipo string)
+      const imcNumerico = profile?.imc ? parseFloat(profile.imc) : 0;
+
+      // Filtra personajes: solo obtiene aquellos donde:
+      // min_imc <= IMC_usuario <= max_imc
+      // lte = less than or equal (menor o igual)
+      // gte = greater than or equal (mayor o igual)
       const { data: chars } = await supabase
         .from('characters')
         .select('*')
-        .lte('min_imc', profile?.imc || 0)
-        .gte('max_imc', profile?.imc || 0);
+        .lte('min_imc', imcNumerico)  // min_imc <= IMC_usuario
+        .gte('max_imc', imcNumerico); // max_imc >= IMC_usuario
 
       if (chars) setCharacters(chars);
       setLoading(false);
@@ -67,25 +105,98 @@ const CreaTuPlan = () => {
 
     cargarDatosUsuario();
 
+    // Listener que refresca datos cuando cambia el estado de autenticación
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) cargarDatosUsuario();
     });
 
-    return () => subscription.unsubscribe();
+    /**
+     * Setup Listener en Tiempo Real (Realtime Subscriptions)
+     * Escucha cambios en la tabla 'profiles' para el usuario actual
+     * Cuando cambia peso/altura (y por tanto IMC), se actualiza automáticamente
+     */
+    const setupRealtimeListener = async () => {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (currentSession) {
+        // Se suscribe a eventos UPDATE en la tabla profiles
+        supabase
+          .channel('profiles-changes') // Nombre del canal para identificación
+          .on(
+            'postgres_changes', // Tipo de cambio (INSERT, UPDATE, DELETE)
+            {
+              event: 'UPDATE', // Solo escucha actualizaciones
+              schema: 'public', // Schema de la BD
+              table: 'profiles', // Tabla a monitorear
+              filter: `id=eq.${currentSession.user.id}` // Solo para el usuario actual
+            },
+            (payload) => {
+              // Cuando hay un cambio, actualiza el perfil con los nuevos datos
+              setUserProfile(payload.new);
+            }
+          )
+          .subscribe();
+      }
+    };
+
+    setupRealtimeListener();
+
+    // Cleanup: desuscribe listeners cuando se desmonta el componente
+    return () => {
+      subscription.unsubscribe();
+      supabase.removeAllChannels();
+    };
   }, [navigate]);
 
+  /**
+   * useEffect Secundario - Se ejecuta cuando cambia el IMC del usuario
+   * Función: Refresca la lista de personajes disponibles cuando el IMC cambia
+   * Esto permite que los personajes compatibles se actualicen en tiempo real
+   */
+  useEffect(() => {
+    if (userProfile?.imc) {
+      const actualizarPersonajes = async () => {
+        // Convierte IMC a número para operaciones de comparación
+        const imcNumerico = parseFloat(userProfile.imc);
+
+        // Realiza la misma búsqueda de personajes con el nuevo IMC
+        const { data: chars } = await supabase
+          .from('characters')
+          .select('*')
+          .lte('min_imc', imcNumerico)
+          .gte('max_imc', imcNumerico);
+
+        if (chars) setCharacters(chars);
+      };
+
+      actualizarPersonajes();
+    }
+  }, [userProfile?.imc]); // Se ejecuta cada vez que userProfile.imc cambia
+
+  /**
+   * Maneja el click en un personaje
+   * Guarda la selección y cambia el paso del flujo a 'location'
+   */
   const handleCharClick = (char) => {
     setSelectedChar(char);
     setStep('location');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  /**
+   * Función principal para generar y guardar el plan de entrenamiento
+   * Procesos:
+   * 1. Prepara los datos del usuario para la IA
+   * 2. Solicita generación del plan a Hugging Face (Llama 3)
+   * 3. Guarda el plan generado en Supabase
+   * 4. Actualiza el perfil con el personaje seleccionado
+   * 5. Redirige a la página para ver el plan
+   */
   const handleFinalSelection = async (location) => {
-    setForjando(true); 
-    
+    setForjando(true); // Muestra pantalla de carga
+
     try {
-      // GENERACIÓN DEL PLAN DIRECTA (SIN STRIPE)
+      // Prepara los datos que se enviarán a la IA para generar el plan
       const datosParaIA = {
         nombre: userProfile?.apodo || "Guerrero",
         objetivo: selectedChar?.objetivo || userProfile?.objetivo || "Aumento de fuerza",
@@ -95,39 +206,48 @@ const CreaTuPlan = () => {
         instrucciones_formato: `
           REGLAS CRÍTICAS DE SALIDA (SISTEMA DE RANGO S):
           1. ESTRUCTURA JSON: Devuelve un objeto con las llaves "nombre_plan", "frase_motivacional", "rutina" (objeto con días) y "dieta_semanal" (objeto con días).
-          2. RUTINA OBLIGATORIA: Cada día (Lunes a Domingo) DEBE tener una cadena de texto con EXACTAMENTE 7 ejercicios numerados, separados por comas. 
+          2. RUTINA OBLIGATORIA: Cada día (Lunes a Domingo) DEBE tener una cadena de texto con EXACTAMENTE 7 ejercicios numerados, separados por comas.
           3. DIETA OBLIGATORIA: Cada día de "dieta_semanal" DEBE tener un menú diferente con Desayuno, Comida y Cena.
         `
       };
-      
+
+      // Solicita el plan a la IA (gestiona la llamada a Hugging Face)
       const planIA = await generarPlanIntegral(datosParaIA);
       if (!planIA) throw new Error("Plan nulo");
 
+      // Guarda o actualiza el plan en la tabla 'planes_entrenamiento'
+      // onConflict: 'user_id' significa que si ya existe un plan para este usuario, lo reemplaza
       const { error: errorPlan } = await supabase
         .from('planes_entrenamiento')
         .upsert(
-          { 
-            user_id: session.user.id, 
-            plan_completo: planIA 
-          }, 
+          {
+            user_id: session.user.id,
+            plan_completo: planIA
+          },
           { onConflict: 'user_id' }
         );
 
       if (errorPlan) throw errorPlan;
 
+      // Actualiza el perfil con el personaje seleccionado
       await supabase
         .from('profiles')
         .update({ selected_character_id: selectedChar.id })
         .eq('id', session.user.id);
 
-      navigate('/mi-plan'); 
+      // Redirige a la página donde el usuario puede ver su plan
+      navigate('/mi-plan');
     } catch (err) {
       console.error("ERROR EN EL SISTEMA:", err);
       alert("Error en la conexión con el Gremio. Verifica tu token o conexión.");
-      setForjando(false); 
+      setForjando(false);
     }
   };
 
+  /**
+   * Cierra la sesión del usuario
+   * Realiza logout en Supabase y recarga la página
+   */
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.reload();

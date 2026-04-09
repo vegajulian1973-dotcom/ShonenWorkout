@@ -1,51 +1,86 @@
 import React, { useState } from 'react';
-import { supabase } from './supabaseClient'; 
+import { supabase } from './supabaseClient';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Dumbbell, ShieldCheck, Code2, User, Calendar, Ruler, Weight, Loader2, Image as ImageIcon, Heart } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+/**
+ * Componente Login - Autenticación y registro de usuarios
+ *
+ * Funcionalidad:
+ * - Permite login con email/contraseña
+ * - Registro de nuevos usuarios con datos personales
+ * - Cálculo automático de IMC en registro
+ * - Carga de avatar/foto de perfil
+ * - Sincronización de datos de autenticación y perfil en Supabase
+ */
 const Login = () => {
-  const [isLogin, setIsLogin] = useState(true);
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [profileImage, setProfileImage] = useState(null); // Estado para la imagen
-  
+  // ===== ESTADOS DE UI =====
+  const [isLogin, setIsLogin] = useState(true); // Toggle entre login y registro
+  const [showPassword, setShowPassword] = useState(false); // Mostrar/ocultar contraseña
+  const [loading, setLoading] = useState(false); // Indica si se está procesando request
+  const [profileImage, setProfileImage] = useState(null); // Imagen de perfil seleccionada
+
   const navigate = useNavigate();
 
+  // ===== DATOS DEL FORMULARIO =====
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    fullName: '',
-    nickname: '',
-    birthDate: '',
-    height: '',
-    weight: '',
-    gender: '' // Nuevo campo: Género
+    email: '', // Email del usuario
+    password: '', // Contraseña
+    fullName: '', // Nombre completo
+    nickname: '', // Apodo/nombre de usuario en el sistema
+    birthDate: '', // Fecha de nacimiento (YYYY-MM-DD)
+    height: '', // Altura en cm
+    weight: '', // Peso en kg
+    gender: '' // Género del usuario
   });
 
+  /**
+   * Actualiza el estado del formulario cuando cambian los inputs
+   */
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  /**
+   * Maneja la selección de imagen para el avatar del usuario
+   */
   const handleImageChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       setProfileImage(e.target.files[0]);
     }
   };
 
+  /**
+   * Maneja el envío del formulario (login o registro)
+   *
+   * Flujos:
+   * - LOGIN: Autentica usuario con email/contraseña
+   * - REGISTRO: Crea cuenta en Auth + inserta perfil en BD + sube avatar
+   *
+   * Proceso de registro:
+   * 1. Crea usuario en Supabase Auth
+   * 2. Sube imagen a Storage (si se proporciona)
+   * 3. Calcula IMC basado en peso/altura
+   * 4. Inserta perfil completo en tabla 'profiles'
+   * 5. Redirige a home si todo es exitoso
+   */
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
       if (isLogin) {
+        // FLUJO DE LOGIN: Autenticación simple
         const { error } = await supabase.auth.signInWithPassword({
           email: formData.email,
           password: formData.password,
         });
         if (error) throw error;
-        navigate('/'); 
+        navigate('/');
       } else {
-        // 1. Registro en Auth
+        // FLUJO DE REGISTRO: Proceso en 4 pasos
+
+        // Paso 1: Crear usuario en Supabase Auth
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
@@ -56,42 +91,45 @@ const Login = () => {
         if (authData.user) {
           let imageUrl = null;
 
-          // 2. Subir imagen a Storage (si existe)
+          // Paso 2: Subir imagen de perfil a Supabase Storage (si el usuario proporciona una)
           if (profileImage) {
             const fileExt = profileImage.name.split('.').pop();
             const fileName = `${authData.user.id}.${fileExt}`;
             const { error: uploadError } = await supabase.storage
-              .from('avatars') // Asegúrate de tener un bucket llamado 'avatars' en Supabase
+              .from('avatars')
               .upload(fileName, profileImage);
-            
+
+            // Si la carga es exitosa, obtiene la URL pública
             if (!uploadError) {
               const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
               imageUrl = publicUrlData.publicUrl;
             }
           }
 
+          // Paso 3: Calcula el IMC con la fórmula estándar
+          // IMC = peso(kg) / altura(m)²
           const heightMeters = formData.height / 100;
           const calculatedIMC = (formData.weight / (heightMeters * heightMeters)).toFixed(2);
 
-          // 3. Insertar en tabla Profiles
+          // Paso 4: Inserta perfil completo en tabla 'profiles'
           const { error: profileError } = await supabase
             .from('profiles')
             .insert([
               {
-                id: authData.user.id,
+                id: authData.user.id, // ID del usuario de Auth
                 nombre: formData.fullName,
                 apodo: formData.nickname,
                 fechaCumple: formData.birthDate,
                 altura: parseFloat(formData.height),
                 peso: parseFloat(formData.weight),
-                imc: parseFloat(calculatedIMC),
-                genero: formData.gender, // Guardamos género
-                avatar_url: imageUrl   // Guardamos URL de la foto
+                imc: parseFloat(calculatedIMC), // IMC calculado
+                genero: formData.gender,
+                avatar_url: imageUrl // URL pública del avatar
               },
             ]);
 
           if (profileError) throw profileError;
-          
+
           alert(`¡REGISTRO EXITOSO, ATLETA!`);
           navigate('/');
         }

@@ -1,54 +1,79 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { 
-  Dumbbell, Zap, User, ChevronDown, LogOut, Activity, 
+import {
+  Dumbbell, Zap, User, ChevronDown, LogOut, Activity,
   Save, Edit3, Scale, Ruler, Calendar, Heart, Code2, Camera,
   ShieldCheck, Target, Coffee, Info, Menu, X, Settings
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from './supabaseClient'; 
+import { supabase } from './supabaseClient';
 
+/**
+ * Componente Perfil - Página de edición de datos del usuario
+ *
+ * Funcionalidad:
+ * - Muestra y permite editar datos personales del usuario (nombre, peso, altura, etc.)
+ * - Calcula IMC automáticamente basado en peso/altura
+ * - Carga y guarda avatar del usuario en Supabase Storage
+ * - Sincroniza cambios de IMC con la BD para actualizar personajes disponibles
+ * - Verifica si el usuario tiene planes creados
+ */
 const Perfil = () => {
   const navigate = useNavigate();
-  const fileInputRef = useRef(null);
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [session, setSession] = useState(null);
-  const [randomIcon, setRandomIcon] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [tienePlan, setTienePlan] = useState(false);
+  const fileInputRef = useRef(null); // Referencia para input de archivo de imagen
 
+  // ===== ESTADOS DE CARGA Y AUTENTICACIÓN =====
+  const [loading, setLoading] = useState(true); // Controla pantalla de carga inicial
+  const [editing, setEditing] = useState(false); // Modo edición/lectura del formulario
+  const [session, setSession] = useState(null); // Sesión del usuario autenticado
+  const [uploading, setUploading] = useState(false); // Indica si se está subiendo archivo
+  const [isMenuOpen, setIsMenuOpen] = useState(false); // Menú móvil
+  const [randomIcon, setRandomIcon] = useState(null); // Icono aleatorio para navbar
+  const [tienePlan, setTienePlan] = useState(false); // Indica si usuario tiene plan de entrenamiento
+
+  // ===== DATOS DEL USUARIO =====
   const [userData, setUserData] = useState({
     nombre: '',
     apodo: '',
-    fechaCumple: '', 
+    fechaCumple: '',
     peso: '',
     altura: '',
     genero: '',
-    avatar_url: '' 
+    avatar_url: ''
   });
 
+  /**
+   * Obtiene el perfil completo del usuario desde Supabase
+   * Se ejecuta con useCallback para evitar renders innecesarios
+   *
+   * Procesos:
+   * 1. Obtiene todos los datos del usuario (nombre, peso, altura, avatar, etc.)
+   * 2. Verifica si el usuario ya tiene planes de entrenamiento creados
+   * 3. Maneja errores y finaliza el estado de carga
+   */
   const getProfile = useCallback(async (userSession) => {
     try {
+      // Obtiene el perfil completo del usuario autenticado
       const { data, error } = await supabase
-        .from('profiles') 
+        .from('profiles')
         .select('*')
         .eq('id', userSession.user.id)
         .single();
 
       if (data) setUserData(data);
 
+      // Verifica si el usuario tiene al menos un plan de entrenamiento guardado
       const { data: planData } = await supabase
         .from('planes_entrenamiento')
         .select('id')
         .eq('user_id', userSession.user.id)
         .maybeSingle();
-      
+
       if (planData) setTienePlan(true);
 
     } catch (err) {
       console.error("Error al obtener perfil:", err);
     } finally {
+      // Finaliza pantalla de carga después de obtener los datos
       setLoading(false);
     }
   }, []);
@@ -69,16 +94,40 @@ const Perfil = () => {
     checkSession();
   }, [navigate, getProfile]);
 
+  /**
+   * Maneja la carga de archivo para el avatar del usuario
+   *
+   * Procesos:
+   * 1. Valida que haya un archivo seleccionado
+   * 2. Genera nombre único para el archivo (user_id + random)
+   * 3. Sube el archivo a Supabase Storage
+   * 4. Obtiene URL pública de la imagen subida
+   * 5. Actualiza el estado con la nueva URL
+   */
   const handleFileUpload = async (event) => {
     try {
       setUploading(true);
       const file = event.target.files[0];
       if (!file) return;
+
+      // Obtiene extensión del archivo original
       const fileExt = file.name.split('.').pop();
+      // Crea nombre único para evitar conflictos (ID usuario + número aleatorio)
       const fileName = `${session.user.id}-${Math.random()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage.from('avatar_profile').upload(fileName, file);
+
+      // Sube archivo a bucket 'avatar_profile' en Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('avatar_profile')
+        .upload(fileName, file);
+
       if (uploadError) throw uploadError;
-      const { data: { publicUrl } } = supabase.storage.from('avatar_profile').getPublicUrl(fileName);
+
+      // Obtiene URL pública de la imagen subida
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatar_profile')
+        .getPublicUrl(fileName);
+
+      // Actualiza el estado con la nueva URL del avatar
       setUserData({ ...userData, avatar_url: publicUrl });
     } catch (error) {
       alert('Error al subir imagen: ' + error.message);
@@ -87,25 +136,73 @@ const Perfil = () => {
     }
   };
 
+  /**
+   * Actualiza los datos del usuario en Supabase
+   *
+   * Procesos importantes:
+   * 1. Calcula IMC basado en peso y altura actual
+   * 2. Guarda todos los datos actualizados (incluyendo el IMC calculado)
+   * 3. El IMC se guarda en BD para que otros componentes lo lean
+   * 4. Al cambiar el IMC, automáticamente se actualizan personajes disponibles
+   */
   const handleUpdate = async () => {
     setLoading(true);
-    const { error } = await supabase.from('profiles').upsert({ id: session.user.id, ...userData });
-    if (!error) setEditing(false);
-    else alert("Error al sincronizar: " + error.message);
+
+    // Conversión de unidades: altura en cm a metros (dividido por 100)
+    const p = parseFloat(userData.peso); // Peso en kg
+    const a = parseFloat(userData.altura) / 100; // Altura en metros
+
+    // Fórmula IMC: peso (kg) / altura² (m²)
+    // Solo calcula si ambos valores son válidos y mayores a 0
+    const imcCalculado = (p > 0 && a > 0)
+      ? parseFloat((p / (a * a)).toFixed(1)) // Redondea a 1 decimal
+      : null;
+
+    // Guarda los datos en Supabase, incluyendo el IMC calculado
+    const { error } = await supabase.from('profiles').upsert({
+      id: session.user.id,
+      ...userData,
+      imc: imcCalculado
+    });
+
+    if (!error) {
+      setEditing(false);
+    } else {
+      alert("Error al sincronizar: " + error.message);
+    }
     setLoading(false);
   };
 
+  /**
+   * Cierra la sesión del usuario y recarga la página
+   */
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.reload();
   };
 
+  /**
+   * Calcula el IMC dinámicamente basado en peso y altura actuales
+   * Retorna el valor redondeado a 1 decimal o "--" si los datos son inválidos
+   *
+   * Fórmula: IMC = Peso(kg) / Altura(m)²
+   */
   const imc = () => {
     const p = parseFloat(userData.peso);
     const a = parseFloat(userData.altura) / 100;
-    return (p > 0 && a > 0) ? (p / (a * a)).toFixed(1) : "--";
+    return (p > 0 && a > 0)
+      ? (p / (a * a)).toFixed(1)
+      : "--";
   };
 
+  /**
+   * Retorna el color del texto según el rango de IMC
+   * Colores por categoría de peso:
+   * - Azul: Bajo peso (< 18.5)
+   * - Verde: Peso normal (18.5 - 24.9)
+   * - Amarillo: Sobrepeso (25 - 29.9)
+   * - Rojo: Obesidad (≥ 30)
+   */
   const getImcColor = (valor) => {
     if (valor === "--") return "text-zinc-600";
     const n = parseFloat(valor);
